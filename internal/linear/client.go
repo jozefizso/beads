@@ -83,6 +83,13 @@ const issuesQuery = `
 					id
 					identifier
 				}
+				projectMilestone {
+					id
+					name
+					description
+					progress
+					targetDate
+				}
 				relations {
 					nodes {
 						id
@@ -911,6 +918,17 @@ func (c *Client) FetchIssueByIdentifier(ctx context.Context, identifier string) 
 							id
 							name
 						}
+					}
+					parent {
+						id
+						identifier
+					}
+					projectMilestone {
+						id
+						name
+						description
+						progress
+						targetDate
 					}
 					createdAt
 					updatedAt
