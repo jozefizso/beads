@@ -24,13 +24,17 @@ Configuration:
   bd config set jira.projects "PROJ1,PROJ2"   # Multiple projects
   bd config set jira.api_token "YOUR_TOKEN"
   bd config set jira.username "your_email@company.com"  # For Jira Cloud
+  bd config set jira.pull_jql "labels = agent-ready"    # Extra pull filter
   bd config set jira.push_prefix "hippo"       # Only push hippo-* issues to Jira
   bd config set jira.push_prefix "proj1,proj2" # Multiple prefixes (comma-separated)
 
 Environment variables (alternative to config):
+  JIRA_URL        - Jira base URL
   JIRA_API_TOKEN  - Jira API token
   JIRA_USERNAME   - Jira username/email
+  JIRA_PROJECT    - Project key
   JIRA_PROJECTS   - Comma-separated project keys
+  JIRA_PULL_JQL   - Extra JQL filter for pull sync
 
 Examples:
   bd jira sync --pull         # Import issues from Jira
@@ -221,13 +225,11 @@ func runJiraStatus(cmd *cobra.Command, args []string) {
 		FatalError("%v", err)
 	}
 
-	jiraURL, _ := store.GetConfig(ctx, "jira.url")
+	jiraURL := getJiraConfigValue(ctx, "jira.url", "JIRA_URL")
 	lastSync, _ := store.GetConfig(ctx, "jira.last_sync")
 
 	// Resolve project keys from all config sources.
-	pluralProjects, _ := store.GetConfig(ctx, "jira.projects")
-	singularProject, _ := store.GetConfig(ctx, "jira.project")
-	projectKeys := tracker.ResolveProjectIDs(nil, pluralProjects, singularProject)
+	projectKeys := resolveJiraProjectKeys(ctx)
 
 	configured := jiraURL != "" && len(projectKeys) > 0
 
@@ -310,24 +312,43 @@ func validateJiraConfig() error {
 	}
 
 	ctx := rootCtx
-	jiraURL, _ := store.GetConfig(ctx, "jira.url")
+	jiraURL := getJiraConfigValue(ctx, "jira.url", "JIRA_URL")
 
 	if jiraURL == "" {
-		return fmt.Errorf("jira.url not configured\nRun: bd config set jira.url \"https://company.atlassian.net\"")
+		return fmt.Errorf("jira.url not configured\nRun: bd config set jira.url \"https://company.atlassian.net\"\nOr: export JIRA_URL=https://company.atlassian.net")
 	}
 
 	// Check for project configuration (singular or plural).
-	pluralProjects, _ := store.GetConfig(ctx, "jira.projects")
-	singularProject, _ := store.GetConfig(ctx, "jira.project")
-	projectKeys := tracker.ResolveProjectIDs(nil, pluralProjects, singularProject)
+	projectKeys := resolveJiraProjectKeys(ctx)
 	if len(projectKeys) == 0 {
-		return fmt.Errorf("no Jira project configured\nRun: bd config set jira.project \"PROJ\"\nOr:  bd config set jira.projects \"PROJ1,PROJ2\"")
+		return fmt.Errorf("no Jira project configured\nRun: bd config set jira.project \"PROJ\"\nOr:  bd config set jira.projects \"PROJ1,PROJ2\"\nOr:  export JIRA_PROJECTS=PROJ1,PROJ2")
 	}
 
-	apiToken, _ := store.GetConfig(ctx, "jira.api_token")
-	if apiToken == "" && os.Getenv("JIRA_API_TOKEN") == "" {
+	apiToken := getJiraConfigValue(ctx, "jira.api_token", "JIRA_API_TOKEN")
+	if apiToken == "" {
 		return fmt.Errorf("Jira API token not configured\nRun: bd config set jira.api_token \"YOUR_TOKEN\"\nOr: export JIRA_API_TOKEN=YOUR_TOKEN")
 	}
 
 	return nil
+}
+
+func getJiraConfigValue(ctx context.Context, key, envVar string) string {
+	val, _ := store.GetConfig(ctx, key)
+	return configValueWithEnv(val, envVar)
+}
+
+func resolveJiraProjectKeys(ctx context.Context) []string {
+	pluralProjects := getJiraConfigValue(ctx, "jira.projects", "JIRA_PROJECTS")
+	singularProject := getJiraConfigValue(ctx, "jira.project", "JIRA_PROJECT")
+	return tracker.ResolveProjectIDs(nil, pluralProjects, singularProject)
+}
+
+func configValueWithEnv(configVal, envVar string) string {
+	if configVal != "" {
+		return configVal
+	}
+	if envVar == "" {
+		return ""
+	}
+	return os.Getenv(envVar)
 }

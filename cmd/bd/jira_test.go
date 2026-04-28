@@ -61,3 +61,31 @@ func TestJiraSyncResult(t *testing.T) {
 		t.Errorf("expected Warnings to be empty, got %v", result.Warnings)
 	}
 }
+
+func TestJiraConfigValueWithEnv(t *testing.T) {
+	t.Setenv("JIRA_PROJECTS", "ENV")
+
+	if got := configValueWithEnv("CONFIG", "JIRA_PROJECTS"); got != "CONFIG" {
+		t.Errorf("configValueWithEnv should prefer config value, got %q", got)
+	}
+	if got := configValueWithEnv("", "JIRA_PROJECTS"); got != "ENV" {
+		t.Errorf("configValueWithEnv should fall back to env value, got %q", got)
+	}
+	if got := configValueWithEnv("", ""); got != "" {
+		t.Errorf("configValueWithEnv with no env var = %q, want empty", got)
+	}
+}
+
+func TestJiraProjectEnvResolution(t *testing.T) {
+	t.Setenv("JIRA_PROJECTS", "PS,ENG")
+
+	projects := tracker.ResolveProjectIDs(
+		nil,
+		configValueWithEnv("", "JIRA_PROJECTS"),
+		configValueWithEnv("", "JIRA_PROJECT"),
+	)
+
+	if len(projects) != 2 || projects[0] != "PS" || projects[1] != "ENG" {
+		t.Fatalf("resolved projects = %v, want [PS ENG]", projects)
+	}
+}

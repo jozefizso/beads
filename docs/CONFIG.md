@@ -623,6 +623,9 @@ bd config set jira.project "PROJ"
 bd config set jira.projects "PROJ1,PROJ2"   # Multiple projects (comma-separated)
 bd config set jira.api_token "YOUR_TOKEN"
 
+# Restrict pull sync to a custom Jira query fragment
+bd config set jira.pull_jql 'labels = "agent-ready"'
+
 # Map bd statuses to Jira statuses
 bd config set jira.status_map.open "To Do"
 bd config set jira.status_map.in_progress "In Progress"
@@ -633,6 +636,20 @@ bd config set jira.type_map.bug "Bug"
 bd config set jira.type_map.feature "Story"
 bd config set jira.type_map.task "Task"
 ```
+
+**Environment variables:**
+
+Jira connection settings can also come from environment variables when the
+corresponding `bd config` key is not set:
+
+| Config Key       | Environment Variable |
+|------------------|----------------------|
+| `jira.url`       | `JIRA_URL`           |
+| `jira.project`   | `JIRA_PROJECT`       |
+| `jira.projects`  | `JIRA_PROJECTS`      |
+| `jira.username`  | `JIRA_USERNAME`      |
+| `jira.api_token` | `JIRA_API_TOKEN`     |
+| `jira.pull_jql`  | `JIRA_PULL_JQL`      |
 
 ### Example: Linear Integration
 

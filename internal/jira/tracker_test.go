@@ -665,6 +665,47 @@ func TestFetchIssuesIncludesPullJQLInQuery(t *testing.T) {
 	}
 }
 
+func TestFetchIssuesIncludesPullJQLFromEnvInQuery(t *testing.T) {
+	t.Setenv("JIRA_PULL_JQL", `labels = "env-ready"`)
+	var capturedJQL string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/rest/api/3/search/jql" {
+			capturedJQL = r.URL.Query().Get("jql")
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"issues":     []Issue{},
+				"total":      0,
+				"maxResults": 50,
+				"startAt":    0,
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	store := &configStore{
+		data: map[string]string{},
+	}
+
+	tr := &Tracker{
+		client:      newTestClient(srv.URL, "3"),
+		store:       store,
+		projectKeys: []string{"TEST"},
+		apiVersion:  "3",
+	}
+
+	_, err := tr.FetchIssues(context.Background(), tracker.FetchOptions{State: "open"})
+	if err != nil {
+		t.Fatalf("FetchIssues error: %v", err)
+	}
+
+	if !strings.Contains(capturedJQL, `labels = "env-ready"`) {
+		t.Errorf("JQL should contain JIRA_PULL_JQL filter, got: %s", capturedJQL)
+	}
+}
+
 func TestFetchIssuesWithoutPullJQLOmitsExtraFilter(t *testing.T) {
 	var capturedJQL string
 
